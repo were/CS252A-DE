@@ -32,92 +32,6 @@ class OrXor extends Module {
   io.cout := io.a & io.b
 }
 
-class SelectAdder4 extends Module {
-  val io = IO(new Bundle { 
-    val a    = Input(UInt(4.W))
-    val b    = Input(UInt(4.W))
-    val sum0  = Output(UInt(4.W))
-    val sum1  = Output(UInt(4.W))
-    val cout0 = Output(UInt(1.W))
-    val cout1 = Output(UInt(1.W))
-  })
-  
-  val m0 = Module(new OrXor())
-  m0.io.a := io.a(0)
-  m0.io.b := io.b(0)
-
-  val _m0 = Module(new OrXor())
-  _m0.io.a := m0.io.sum
-  _m0.io.b := 1.U
-
-  val m1 = Module(new FullAdder())
-  m1.io.a := io.a(1)
-  m1.io.b := io.b(1)
-  m1.io.cin := m0.io.cout
-
-  val _m1 = Module(new OrXor())
-  _m1.io.a := m1.io.sum
-  _m1.io.b := _m0.io.cout
-
-  val m2 = Module(new FullAdder())
-  m2.io.a := io.a(2)
-  m2.io.b := io.b(2)
-  m2.io.cin := m1.io.cout
-
-  val _m2 = Module(new OrXor())
-  _m2.io.a := m2.io.sum
-  _m2.io.b := _m1.io.cout
-
-  val m3 = Module(new FullAdder())
-  m3.io.a := io.a(3)
-  m3.io.b := io.b(3)
-  m3.io.cin := m2.io.cout
-
-  val _m3 = Module(new OrXor())
-  _m3.io.a := m3.io.sum
-  _m3.io.b := _m2.io.cout
-
-  io.sum0 :=  m0.io.sum |  (m1.io.sum << 1) |  (m2.io.sum << 2) |  (m3.io.sum << 3)
-  io.sum1 := _m0.io.sum | (_m1.io.sum << 1) | (_m2.io.sum << 2) | (_m3.io.sum << 3)
-
-  io.cout0 := m3.io.cout
-  io.cout1 := _m3.io.cout | m3.io.cout
-
-}
-
-class FullAdder4 extends Module {
-
-  val io = IO(new Bundle { 
-    val a    = Input(UInt(4.W))
-    val b    = Input(UInt(4.W))
-    val sum  = Output(UInt(4.W))
-    val cout = Output(UInt(1.W))
-  })
-  
-  val m0 = Module(new OrXor())
-  m0.io.a := io.a(0)
-  m0.io.b := io.b(0)
-
-  val m1 = Module(new FullAdder())
-  m1.io.a := io.a(1)
-  m1.io.b := io.b(1)
-  m1.io.cin := m0.io.cout
-
-  val m2 = Module(new FullAdder())
-  m2.io.a := io.a(2)
-  m2.io.b := io.b(2)
-  m2.io.cin := m1.io.cout
-
-  val m3 = Module(new FullAdder())
-  m3.io.a := io.a(3)
-  m3.io.b := io.b(3)
-  m3.io.cin := m2.io.cout
-
-  io.sum :=  m0.io.sum |  (m1.io.sum << 1) |  (m2.io.sum << 2) |  (m3.io.sum << 3)
-  io.cout := m3.io.cout
-
-}
-
 class CarrySelectAdder16 extends Module {
 
   val io = IO(new Bundle { 
@@ -153,3 +67,108 @@ class CarrySelectAdder16 extends Module {
   io.out := a0.io.sum | (out1 << 4) | (out2 << 8) | (out3 << 12)
 }
 
+class CarrySelectAdder32 extends Module {
+
+  val io = IO(new Bundle { 
+    val a   = Input(UInt(32.W))
+    val b   = Input(UInt(32.W))
+    val out = Output(UInt(32.W))
+  })
+
+  val a0 = Module(new FullAdder4())
+  a0.io.a := io.a(3, 0)
+  a0.io.b := io.b(3, 0)
+
+  val a1 = Module(new SelectAdder4())
+  a1.io.a := io.a(7, 4)
+  a1.io.b := io.b(7, 4)
+  val out1  = Mux(a0.io.cout === 0.U, a1.io.sum0, a1.io.sum1)
+  val cout1 = Mux(a0.io.cout === 0.U, a1.io.cout0, a1.io.cout1)
+
+  val a2 = Module(new SelectAdder4())
+  a2.io.a := io.a(11, 8)
+  a2.io.b := io.b(11, 8)
+  val out2  = Mux(cout1 === 0.U, a2.io.sum0, a2.io.sum1)
+  val cout2 = Mux(cout1 === 0.U, a2.io.cout0, a2.io.cout1)
+
+  val a3 = Module(new SelectAdder4())
+  a3.io.a := io.a(15, 12)
+  a3.io.b := io.b(15, 12)
+  val out3  = Mux(cout2 === 0.U, a3.io.sum0, a3.io.sum1)
+  val cout3 = Mux(cout2 === 0.U, a3.io.cout0, a3.io.cout1)
+
+  val a4 = Module(new SelectAdder4())
+  a4.io.a := io.a(19, 16)
+  a4.io.b := io.b(19, 16)
+  val out4  = Mux(cout3 === 0.U, a4.io.sum0, a4.io.sum1)
+  val cout4 = Mux(cout3 === 0.U, a4.io.cout0, a4.io.cout1)
+
+  val a5 = Module(new SelectAdder4())
+  a5.io.a := io.a(23, 20)
+  a5.io.b := io.b(23, 20)
+  val out5  = Mux(cout4 === 0.U, a5.io.sum0, a5.io.sum1)
+  val cout5 = Mux(cout4 === 0.U, a5.io.cout0, a5.io.cout1)
+
+  val a6 = Module(new SelectAdder4())
+  a6.io.a := io.a(27, 24)
+  a6.io.b := io.b(27, 24)
+  val out6  = Mux(cout5 === 0.U, a6.io.sum0, a6.io.sum1)
+  val cout6 = Mux(cout5 === 0.U, a6.io.cout0, a6.io.cout1)
+
+  val a7 = Module(new SelectAdder4())
+  a7.io.a := io.a(31, 28)
+  a7.io.b := io.b(31, 28)
+  val out7  = Mux(cout6 === 0.U, a7.io.sum0, a7.io.sum1)
+
+  io.out := a0.io.sum | (out1 << 4) | (out2 << 8) | (out3 << 12) | (out4 << 16) | (out5 << 20) | (out6 << 24) | (out7 << 28)
+}
+
+class CarrySelectAdder68 extends Module {
+
+  val io = IO(new Bundle { 
+    val a   = Input(UInt(32.W))
+    val b   = Input(UInt(32.W))
+    val out = Output(UInt(32.W))
+  })
+
+  val a0 = Module(new FullAdder6())
+  a0.io.a := io.a(5, 0)
+  a0.io.b := io.b(5, 0)
+
+  val a1 = Module(new SelectAdder6())
+  a1.io.a := io.a(11, 6)
+  a1.io.b := io.b(11, 6)
+  val out1  = Mux(a0.io.cout === 0.U, a1.io.sum0, a1.io.sum1)
+  val cout1 = Mux(a0.io.cout === 0.U, a1.io.cout0, a1.io.cout1)
+
+  val a2 = Module(new SelectAdder6())
+  a2.io.a := io.a(17, 12)
+  a2.io.b := io.b(17, 12)
+  val out2  = Mux(cout1 === 0.U, a2.io.sum0, a2.io.sum1)
+  val cout2 = Mux(cout1 === 0.U, a2.io.cout0, a2.io.cout1)
+
+  val a3 = Module(new SelectAdder6())
+  a3.io.a := io.a(23, 18)
+  a3.io.b := io.b(23, 18)
+  val out3  = Mux(cout2 === 0.U, a3.io.sum0, a3.io.sum1)
+  val cout3 = Mux(cout2 === 0.U, a3.io.cout0, a3.io.cout1)
+
+  val a4 = Module(new SelectAdder8())
+  a4.io.a := io.a(31, 24)
+  a4.io.b := io.b(31, 24)
+  val out4  = Mux(cout3 === 0.U, a4.io.sum0, a4.io.sum1)
+  val cout4 = Mux(cout3 === 0.U, a4.io.cout0, a4.io.cout1)
+
+  //printf(p"${Binary(io.a)}\n")
+  //printf(p"${Binary(io.b)}\n")
+  //printf(p"${Binary(a0.io.sum)}\n")
+  //printf(p"${Binary(out1)}\n")
+  //printf(p"${Binary(cout1)}\n")
+  //printf(p"${Binary(out2)}\n")
+  //printf(p"${Binary(cout2)}\n")
+  //printf(p"${Binary(out3)}\n")
+  //printf(p"${Binary(cout3)}\n")
+  //printf(p"${Binary(out4)}\n")
+  //printf(p"${Binary(cout4)}\n")
+  io.out := a0.io.sum | (out1 << 6) | (out2 << 12) | (out3 << 18) | (out4 << 24)
+}
