@@ -68,3 +68,71 @@ class ConditionalAdder(width: Int) extends Module {
     io.cout1 := bits(width - 1)._1.io.cout | bits(width - 1)._2.io.cout
 
 }
+
+class SimpleAdder(width: Int) extends Module {
+    val io = IO(new Bundle{
+        val a = Input(UInt(width.W))
+        val b = Input(UInt(width.W))
+        val out  = Output(UInt(width.W))
+        val cout = Output(UInt(1.W))
+    })
+    
+    val first = Module(new HalfAdder())
+    val other = for (i <- 0 until (width - 1)) yield Module(new FullAdder())
+
+    first.io.a := io.a(0)
+    first.io.b := io.b(0)
+
+    for (i <- 0 until (width - 1)) {
+        other(i).io.a := io.a(i+1)
+        other(i).io.b := io.b(i+1)
+        if (i == 0)
+            other(i).io.cin := first.io.cout
+        else
+            other(i).io.cin := other(i-1).io.cout
+    }
+    io.cout := other(width-2).io.cout
+    io.out  := Cat(Cat(for (i <- 0 until (width - 1)) yield other(width-2-i).io.sum), first.io.sum)
+}
+
+class CarrySelectAdder(slices_ : Int*) extends Module {
+    val io = IO(new Bundle{
+        val a = Input(UInt(slices_.sum.W))
+        val b = Input(UInt(slices_.sum.W))
+        val out  = Output(UInt(slices_.sum.W))
+        val cout  = Output(UInt(1.W))
+    })
+    val slices = slices_.reverse
+
+    val first = Module(new SimpleAdder(slices(0)))
+    val other = for (i <- 1 until slices.length) yield Module(new ConditionalAdder(slices(i)))
+
+    first.io.a := io.a(slices(0) - 1, 0)
+    first.io.b := io.b(slices(0) - 1, 0)
+
+    other(0).io.a := io.a(slices(0) + slices(1) - 1, slices(0))
+    other(0).io.b := io.b(slices(0) + slices(1) - 1, slices(0))
+
+    var previous = (Mux(first.io.cout === 0.U, other(0).io.cout0, other(0).io.cout1), Mux(first.io.cout === 0.U, other(0).io.sum0, other(0).io.sum1))
+    val second = previous
+    var cur = slices(0) + slices(1)
+    
+    //printf(p"${first.io.a}+${first.io.b}=${first.io.out} (${first.io.cout})\n")
+    //printf(p"${other(0).io.sum0} ${other(0).io.sum1} -> ${second._2}\n")
+
+    var sums = for (i <- 2 until slices.length) yield {
+        other(i-1).io.a := io.a(cur + slices(i) - 1, cur)
+        other(i-1).io.b := io.b(cur + slices(i) - 1, cur)
+        cur += slices(i)
+        val (cout, sum) = previous
+        val to_yeild = (Mux(cout === 0.U, other(i-1).io.cout0, other(i-1).io.cout1), Mux(cout === 0.U, other(i-1).io.sum0, other(i-1).io.sum1))
+        previous = to_yeild
+        //printf(p"${to_yeild._2}\n")
+        to_yeild
+    }
+
+    io.out := Cat(Cat(sums.map(_._2).reverse), Cat(second._2, first.io.out))
+    //printf(p"${Binary(io.out)}")
+    //io.out := Cat(sums.map(_._2).reverse)
+    io.cout := sums.last._1
+}
