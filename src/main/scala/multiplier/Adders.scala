@@ -95,7 +95,7 @@ class SimpleAdder(width: Int) extends Module {
     io.out  := Cat(Cat(for (i <- 0 until (width - 1)) yield other(width-2-i).io.sum), first.io.sum)
 }
 
-class CarrySelectAdder(slices_ : Int*) extends Module {
+class CarrySelectAdder(slices_ : List[Int]) extends Module {
     val io = IO(new Bundle{
         val a = Input(UInt(slices_.sum.W))
         val b = Input(UInt(slices_.sum.W))
@@ -103,36 +103,69 @@ class CarrySelectAdder(slices_ : Int*) extends Module {
         val cout  = Output(UInt(1.W))
     })
     val slices = slices_.reverse
+    if (slices.length != 1) {
+        val first = Module(new SimpleAdder(slices(0)))
+        val other = for (i <- 1 until slices.length) yield Module(new ConditionalAdder(slices(i)))
 
-    val first = Module(new SimpleAdder(slices(0)))
-    val other = for (i <- 1 until slices.length) yield Module(new ConditionalAdder(slices(i)))
+        first.io.a := io.a(slices(0) - 1, 0)
+        first.io.b := io.b(slices(0) - 1, 0)
 
-    first.io.a := io.a(slices(0) - 1, 0)
-    first.io.b := io.b(slices(0) - 1, 0)
+        other(0).io.a := io.a(slices(0) + slices(1) - 1, slices(0))
+        other(0).io.b := io.b(slices(0) + slices(1) - 1, slices(0))
 
-    other(0).io.a := io.a(slices(0) + slices(1) - 1, slices(0))
-    other(0).io.b := io.b(slices(0) + slices(1) - 1, slices(0))
+        var previous = (Mux(first.io.cout === 0.U, other(0).io.cout0, other(0).io.cout1), Mux(first.io.cout === 0.U, other(0).io.sum0, other(0).io.sum1))
+        val second = previous
+        var cur = slices(0) + slices(1)
+        //printf(p"${Binary(io.a)} + ${Binary(io.b)}:\n")
+        //printf(p"${first.io.a}+${first.io.b}=${first.io.out} (${first.io.cout})\n")
+        //printf(p"${other(0).io.sum0} ${other(0).io.sum1} -> ${second._2}\n")
 
-    var previous = (Mux(first.io.cout === 0.U, other(0).io.cout0, other(0).io.cout1), Mux(first.io.cout === 0.U, other(0).io.sum0, other(0).io.sum1))
-    val second = previous
-    var cur = slices(0) + slices(1)
+        var sums = for (i <- 2 until slices.length) yield {
+            other(i-1).io.a := io.a(cur + slices(i) - 1, cur)
+            other(i-1).io.b := io.b(cur + slices(i) - 1, cur)
+            cur += slices(i)
+            val (cout, sum) = previous
+            val to_yeild = (Mux(cout === 0.U, other(i-1).io.cout0, other(i-1).io.cout1), Mux(cout === 0.U, other(i-1).io.sum0, other(i-1).io.sum1))
+            previous = to_yeild
+            //printf(p"${to_yeild._2}\n")
+            to_yeild
+        }
+
+        io.out := Cat(Cat(sums.map(_._2).reverse), Cat(second._2, first.io.out))
+        //printf(p"${Binary(io.out)}")
+        //io.out := Cat(sums.map(_._2).reverse)
+        io.cout := sums.last._1
+    } else {
+        val adder = Module(new SimpleAdder(slices.sum))
+        adder.io.a := io.a
+        adder.io.b := io.b
+        io.out := adder.io.out
+        io.cout := adder.io.cout
+    }
+}
+
+class AddOne(width: Int) extends Module {
+    val io = IO(new Bundle { 
+        val a    = Input(UInt(width.W))
+        val out  = Output(UInt(width.W))
+        val cout = Output(UInt(1.W))
+    })
+
+    val bits = for (i <- 0 until width)
+        yield Module(new HalfAdder())
     
-    //printf(p"${first.io.a}+${first.io.b}=${first.io.out} (${first.io.cout})\n")
-    //printf(p"${other(0).io.sum0} ${other(0).io.sum1} -> ${second._2}\n")
-
-    var sums = for (i <- 2 until slices.length) yield {
-        other(i-1).io.a := io.a(cur + slices(i) - 1, cur)
-        other(i-1).io.b := io.b(cur + slices(i) - 1, cur)
-        cur += slices(i)
-        val (cout, sum) = previous
-        val to_yeild = (Mux(cout === 0.U, other(i-1).io.cout0, other(i-1).io.cout1), Mux(cout === 0.U, other(i-1).io.sum0, other(i-1).io.sum1))
-        previous = to_yeild
-        //printf(p"${to_yeild._2}\n")
-        to_yeild
+    for (i <- 0 until width) {
+        val a = bits(i)
+        a.io.a := io.a(i)
+        if (i != 0) {
+            val b = bits(i - 1)
+            a.io.b := b.io.cout
+        } else {
+            a.io.b := 1.U(1.W)
+        }
     }
 
-    io.out := Cat(Cat(sums.map(_._2).reverse), Cat(second._2, first.io.out))
-    //printf(p"${Binary(io.out)}")
-    //io.out := Cat(sums.map(_._2).reverse)
-    io.cout := sums.last._1
+    io.out := Cat(for (i <- 0 until width) yield bits(width - 1 - i).io.sum)
+    io.cout := bits.last.io.cout
+
 }

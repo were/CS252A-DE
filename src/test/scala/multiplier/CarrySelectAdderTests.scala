@@ -19,7 +19,7 @@ class CarrySelectAdderTester extends ChiselFlatSpec {
   behavior of "Adder"
   backends foreach {backend =>
     it should s"correctly add randomly generated numbers in $backend" in {
-      Driver(() => new CarrySelectAdder(8, 8, 8, 4, 4), backend)(c => new CarrySelectAdderTests(c)) should be (true)
+      Driver(() => new CarrySelectAdder(List(8, 8, 8, 4, 4)), backend)(c => new CarrySelectAdderTests(c)) should be (true)
     }
   }
 }
