@@ -74,13 +74,15 @@ class Multiplier16x16 extends Module {
         if (i == n - 1) booths(i).io.out((n - i) * 2 - 1, 0)
         else Cat(Cat(for (j <- (n-1) to (i + 1) by -1) yield booths(j).io.out((n - i) * 2 - 1, (n - i) * 2 - 2)), booths(i).io.out((n - i) * 2 - 1, 0))
 
+    //for (i <- 1 until n) {
+    //    printf(p"${pyramid(i)}\n")
+    //    acc = acc + (pyramid(i) << (i * 2))
+    //}
 
     val red_0c = Module(new CarrySelectAdder(List(7, 7, 6, 6, 4, 4)))
 
     red_0c.io.a := correct
     red_0c.io.b := pyramid(0)
-
-    var acc = red_0c.io.out
 
     val carry_slices = List(
         List(5, 5, 4, 4, 4, 4),
@@ -96,27 +98,37 @@ class Multiplier16x16 extends Module {
         reduced.io.a := pyramid(i + 1)
         reduced.io.b := pyramid(i)
         val to_yield = Cat(reduced.io.cout, reduced.io.out)
-        val expected = (pyramid(i + 1) << 2) + pyramid(i)
+        //val expected = (pyramid(i + 1) << 2) + pyramid(i)
         //printf(p"${pyramid(i + 1)} ${pyramid(i)} ${to_yield} ${expected}\n")
         to_yield
     }
 
-    acc = acc + (reduction(0) << 2) + (reduction(1) << 6) + (reduction(2) << 10) + (reduction(3) << 14)
+    //val acc = red_0c.io.out + (reduction(0) << 2) + (reduction(1) << 6) + (reduction(2) << 10) + (reduction(3) << 14)
 
-    //for (i <- 1 until n) {
-    //    printf(p"${pyramid(i)}\n")
-    //    acc = acc + (pyramid(i) << (i * 2))
-    //}
+    val red01 = Module(new AlignedReduce(23, 31, List(5, 5, 4, 3, 3, 3)))
+    red01.io.a := reduction(1)
+    red01.io.b := reduction(0)
+    val reduced32 = Cat(red01.io.cout, red01.io.out)
 
-    //for (i <- 0 until n) {
-    //    printf(p"${i} ${Binary(pyramid(i))}\n")
-    //}
-    //printf(p"${Binary(correct)}\n")
+    val red23 = Module(new AlignedReduce(7, 15, List(3, 2, 2)))
+    red23.io.a := reduction(3)
+    red23.io.b := reduction(2)
+    val reduced16 = Cat(red23.io.cout, red23.io.out)
 
+    val fin  = Module(new AlignedReduce(16, 32, List(4, 4, 4, 4)))
+    fin.io.a := reduced16
+    fin.io.b := reduced32
+    val reduced_fin = Cat(fin.io.cout, fin.io.out)
 
-    //printf(p"${acc(width * 2 - 1, 0)}\n")
-    //printf(p"${acc(width * 2 - 1, 0)}\n")
+    //val acc = red_0c.io.out + (reduced16 << 10) + (reduced32 << 2)
 
-    io.c := acc(width * 2 - 1, 0)
+    val prod = Module(new CarrySelectAdder(List(6, 6, 5, 4, 4, 3, 2)))
+    prod.io.a := reduced_fin(29, 0)
+    prod.io.b := red_0c.io.out(31, 2)
+
+    io.c := Cat(prod.io.out(29, 0), red_0c.io.out(1, 0))
+
+    //val acc = red_0c.io.out + (reduced_fin << 2)
+    //io.c := acc(width * 2 - 1, 0)
 
 }
