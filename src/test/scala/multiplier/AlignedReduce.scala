@@ -3,23 +3,23 @@ package multiplier
 
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
 
-class MultiplierTests(mul: Multiplier16x16) extends PeekPokeTester(mul) {
+class AlignedReduceTests(mul: AlignedReduce) extends PeekPokeTester(mul) {
   for (i <- 0 until 10) {
-    val a = rnd.nextInt(1 << 15)
-    val b = rnd.nextInt(1 << 15)
+    val a = rnd.nextInt(1 << 18)
+    val b = rnd.nextInt(1 << 24)
     poke(mul.io.a, a)
     poke(mul.io.b, b)
     step(1)
     //printf("%d %d\n", a, b)
-    expect(mul.io.c, a * b)
+    expect(mul.io.out, ((a << 3) + b) & ((1 << 24) - 1))
   }
 }
 
-class Multiplier16Tester extends ChiselFlatSpec {
+class AlignedReduceTester extends ChiselFlatSpec {
   behavior of "MultiplierTester"
   backends foreach {backend =>
     it should s"correctly add randomly generated numbers in $backend" in {
-      Driver(() => new Multiplier16x16(), backend)(c => new MultiplierTests(c)) should be (true)
+      Driver(() => new AlignedReduce(18, 24, List(4, 4, 4, 3, 3)), backend)(c => new AlignedReduceTests(c)) should be (true)
     }
   }
 }

@@ -2,7 +2,6 @@ package multiplier
 
 import chisel3._
 import chisel3.util.Cat
-import adder._
 
 /// Booth encoding, and flip the MSB.
 class Booth(width: Int) extends Module {
