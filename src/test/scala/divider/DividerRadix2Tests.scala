@@ -27,7 +27,7 @@ class DividerRadix2Tester extends ChiselFlatSpec {
   behavior of "DividerRadix2"
   backends foreach {backend =>
     it should s"correctly add randomly generated numbers $backend" in {
-      Driver(() => new DividerRadix2(8), backend)(c => new DividerRadix2Tests(c)) should be (true)
+      Driver(() => new DividerRadix2(8, 1), backend)(c => new DividerRadix2Tests(c)) should be (true)
     }
   }
 }

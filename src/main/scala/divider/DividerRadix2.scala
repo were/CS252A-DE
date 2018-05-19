@@ -142,14 +142,14 @@ class Multiplexer(val n: Int) extends Module {
 
 class OnlineConverterRadix2(val n: Int) extends Module {
     val io = IO(new Bundle {
+        val Q = Input(UInt(n.W))
+        val QM = Input(UInt(n.W))
         val qm = Input(UInt(1.W))
         val qs = Input(UInt(1.W))
         val load = Input(Bool())
-        val quotient = Output(UInt(n.W))
+        val QOut = Output(UInt(n.W))
+        val QMOut = Output(UInt(n.W))
     })
-
-    val Q = Reg(UInt(n.W))
-    val QM = Reg(UInt(n.W))
 
     val control = Module(new OnlineConverterControlRadix2())
     control.io.qm := io.qm
@@ -158,27 +158,27 @@ class OnlineConverterRadix2(val n: Int) extends Module {
     val mux_q = Module(new Multiplexer(n))
     val mux_qm = Module(new Multiplexer(n))
 
-    mux_q.io.a := Q
-    mux_q.io.b := QM
+    mux_q.io.a := io.Q
+    mux_q.io.b := io.QM
     mux_q.io.sel := control.io.qload
-    mux_qm.io.a := Q
-    mux_qm.io.b := QM
+    mux_qm.io.a := io.Q
+    mux_qm.io.b := io.QM
     mux_qm.io.sel := control.io.qmload
 
     when (io.load) {
-        Q := 0.U(n.W)
-        QM := 0.U(n.W)
+        io.QOut := 0.U(n.W)
+        io.QMOut := 0.U(n.W)
     } .otherwise {
-        Q := util.Cat(mux_q.io.o(n - 2, 0), control.io.qin)
-        QM := util.Cat(mux_qm.io.o(n - 2, 0), control.io.qmin)
+        io.QOut := util.Cat(mux_q.io.o(n - 2, 0), control.io.qin)
+        io.QMOut := util.Cat(mux_qm.io.o(n - 2, 0), control.io.qmin)
     }
-
-    io.quotient := Q
 }
 
 // The input should have n decial digits and
 // be like 0.1xxxxxx
-class DividerRadix2(val n: Int) extends Module {
+// n: n bits division
+// m: m bit of quotient each stage
+class DividerRadix2(val n: Int, val m: Int) extends Module {
     val io = IO(new Bundle {
         val dividend = Input(UInt(n.W))
         val divisor = Input(UInt(n.W))
@@ -191,24 +191,65 @@ class DividerRadix2(val n: Int) extends Module {
     val wc = Reg(UInt((n + 2).W))
     val partial_quotient = Reg(UInt(n.W))
 
-    val updater = Module(new DividerRadix2Updater(n))
-    updater.io.ws := ws
-    updater.io.wc := wc
-    updater.io.divisor := io.divisor
+    val updaters = Array.fill(m)(Module(new DividerRadix2Updater(n)))
+    updaters(0).io.ws := ws
+    updaters(0).io.wc := wc
+    updaters(0).io.divisor := io.divisor
+    for (i <- 1 until m) {
+        // Connect all the updaters to the previous
+        updaters(i).io.ws := updaters(i - 1).io.ows
+        updaters(i).io.wc := updaters(i - 1).io.owc
+        updaters(i).io.divisor := io.divisor
+    }
 
-    val converter = Module(new OnlineConverterRadix2(n))
-    converter.io.load := io.load
-    converter.io.qs := updater.io.qs
-    converter.io.qm := updater.io.qm
-    io.quotient := converter.io.quotient
+    // val updater = Module(new DividerRadix2Updater(n))
+    // updater.io.ws := ws
+    // updater.io.wc := wc
+    // updater.io.divisor := io.divisor
+
+    val Q = Reg(UInt(n.W))
+    val QM = Reg(UInt(n.W))
+
+    io.quotient := Q
+
+    val converters = Array.fill(m)(Module(new OnlineConverterRadix2(n)))
+    converters(0).io.load := io.load
+    converters(0).io.Q := Q
+    converters(0).io.QM := QM
+    for (i <- 1 until m) {
+        // Connect all converters to the previous one.
+        converters(i).io.load := io.load
+        converters(i).io.Q := converters(i - 1).io.QOut
+        converters(i).io.QM := converters(i - 1).io.QMOut
+    }
+
+    // Connect all the converter to the corresponding updater
+    for (i <- 0 until m) {
+        converters(i).io.qs := updaters(i).io.qs
+        converters(i).io.qm := updaters(i).io.qm
+    }
+
+    // val converter = Module(new OnlineConverterRadix2(n))
+    // converter.io.load := io.load
+    // converter.io.Q := Q
+    // converter.io.QM := QM
+    // converter.io.qs := updater.io.qs
+    // converter.io.qm := updater.io.qm
 
     when (io.load) {
         // Initialize with dividend.
         ws := util.Cat(0.U(3.W), io.dividend(n - 1, 1))
         wc := 0.U
+        // Converter.
+        Q := converters(m - 1).io.QOut
+        QM := converters(m - 1).io.QMOut
     } .otherwise {
-        ws := updater.io.ows
-        wc := updater.io.owc
+        // Update wc and ws with the last updater
+        ws := updaters(m - 1).io.ows
+        wc := updaters(m - 1).io.owc
+        // Converter.
+        Q := converters(m - 1).io.QOut
+        QM := converters(m - 1).io.QMOut
     } 
 
     io.remainder := ws
