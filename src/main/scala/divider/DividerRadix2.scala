@@ -146,7 +146,7 @@ class OnlineConverterRadix2(val n: Int) extends Module {
         val QM = Input(UInt(n.W))
         val qm = Input(UInt(1.W))
         val qs = Input(UInt(1.W))
-        val load = Input(Bool())
+        // val load = Input(Bool())
         val QOut = Output(UInt(n.W))
         val QMOut = Output(UInt(n.W))
     })
@@ -165,13 +165,16 @@ class OnlineConverterRadix2(val n: Int) extends Module {
     mux_qm.io.b := io.QM
     mux_qm.io.sel := control.io.qmload
 
-    when (io.load) {
-        io.QOut := 0.U(n.W)
-        io.QMOut := 0.U(n.W)
-    } .otherwise {
-        io.QOut := util.Cat(mux_q.io.o(n - 2, 0), control.io.qin)
-        io.QMOut := util.Cat(mux_qm.io.o(n - 2, 0), control.io.qmin)
-    }
+    io.QOut := util.Cat(mux_q.io.o(n - 2, 0), control.io.qin)
+    io.QMOut := util.Cat(mux_qm.io.o(n - 2, 0), control.io.qmin)
+
+    // when (io.load) {
+    //     io.QOut := 0.U(n.W)
+    //     io.QMOut := 0.U(n.W)
+    // } .otherwise {
+    //     io.QOut := util.Cat(mux_q.io.o(n - 2, 0), control.io.qin)
+    //     io.QMOut := util.Cat(mux_qm.io.o(n - 2, 0), control.io.qmin)
+    // }
 }
 
 // The input should have n decial digits and
@@ -213,12 +216,12 @@ class DividerRadix2(val n: Int, val m: Int) extends Module {
     io.quotient := Q
 
     val converters = Array.fill(m)(Module(new OnlineConverterRadix2(n)))
-    converters(0).io.load := io.load
+    // converters(0).io.load := io.load
     converters(0).io.Q := Q
     converters(0).io.QM := QM
     for (i <- 1 until m) {
         // Connect all converters to the previous one.
-        converters(i).io.load := io.load
+        // converters(i).io.load := io.load
         converters(i).io.Q := converters(i - 1).io.QOut
         converters(i).io.QM := converters(i - 1).io.QMOut
     }
@@ -241,8 +244,8 @@ class DividerRadix2(val n: Int, val m: Int) extends Module {
         ws := util.Cat(0.U(3.W), io.dividend(n - 1, 1))
         wc := 0.U
         // Converter.
-        Q := converters(m - 1).io.QOut
-        QM := converters(m - 1).io.QMOut
+        Q := 0.U(n.W)
+        QM := 0.U(n.W)
     } .otherwise {
         // Update wc and ws with the last updater
         ws := updaters(m - 1).io.ows
