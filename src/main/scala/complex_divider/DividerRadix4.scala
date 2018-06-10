@@ -259,21 +259,21 @@ class Radix4Updater(val n: Int) extends Module {
             // The least significant bit is set to 1
             // due to 2's complement of -q * divisor
             csa.io.B := util.Cat(io.wc_r(n + int_bits - 1, 1), 1.U(1.W))
-            csa.io.Cin := ~io.divisor
+            csa.io.Cin := util.Cat(1.U(int_bits.W), ~io.divisor)
         } .otherwise {
             // q === 2
             csa.io.B := util.Cat(io.wc_r(n + int_bits - 1, 1), 1.U(1.W))
-            csa.io.Cin := ~(io.divisor << 1)
+            csa.io.Cin := util.Cat(1.U((int_bits - 1).W), ~io.divisor, 1.U(1.W))
         }
     } .otherwise {
         when (selector.io.qm === 1.U) {
             // q === -1
             csa.io.B := io.wc_r
-            csa.io.Cin := io.divisor
+            csa.io.Cin := util.Cat(0.U(int_bits.W), io.divisor)
         } .otherwise {
             // q === -2
             csa.io.B := io.wc_r
-            csa.io.Cin := io.divisor << 1
+            csa.io.Cin := util.Cat(0.U((int_bits - 1).W), io.divisor, 0.U(1.W))
         }
     }
 
@@ -353,5 +353,5 @@ class DividerRadix4(val n: Int, val m: Int) extends Module {
         QM := converters(m - 1).io.QMOut
     }
 
-    io.remainder := ws_r
+    io.remainder := ws_r(n - 1, 0)
 }
